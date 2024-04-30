@@ -268,7 +268,7 @@ fn update_stick(
 
     let placement_diff = stick_input - &player.stick_placement;
     let placement_change = 0.0625 * placement_diff - 0.5 * player.stick_placement_delta;
-    let placement_change = limit_vector_length2(&placement_change, 0.0088888891);
+    let placement_change = limit_vector_length2(&placement_change, 0.01);
 
     player.stick_placement_delta += placement_change;
     player.stick_placement += &player.stick_placement_delta;
