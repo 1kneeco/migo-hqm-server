@@ -10,9 +10,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub use crate::hqm_behaviour::HQMServerBehaviour;
+use crate::hqm_simulate::HQMSimulationEvent;
 use bytes::{BufMut, BytesMut};
 use chrono::{DateTime, Utc};
-use nalgebra::{Point3, Rotation3};
+use nalgebra::{Point3, Rotation3, Vector3};
 use std::fmt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -304,6 +305,8 @@ pub struct HQMServer {
     saved_history: VecDeque<ReplayTick>,
 
     pub history_length: usize,
+
+    saved_events: VecDeque<(u32, VecDeque<(HQMObjectIndex, HQMObjectIndex)>)>,
 }
 
 impl HQMServer {
@@ -675,7 +678,52 @@ impl HQMServer {
             "t" => {
                 self.add_user_team_message(arg, player_index);
             }
+            "lm" => {
+                if let Ok(limit) = arg.parse::<f32>() {
+                    self.set_stick_limit(limit, player_index);
+                } else {
+                    match arg {
+                        "old" => {
+                            self.set_stick_limit(0.0088888891, player_index);
+                        }
+                        "new" => {
+                            self.set_stick_limit(0.01, player_index);
+                        }
+                        "no" => {
+                            self.set_stick_limit(0.0, player_index);
+                        }
+                        _ => {}
+                    }
+                }
+            }
             _ => behaviour.handle_command(self, command, arg, player_index),
+        }
+    }
+
+    fn set_stick_limit(&mut self, limit: f32, player_index: HQMServerPlayerIndex) {
+        if let Some(player) = self.players.get_mut(player_index) {
+            player.stick_limit = limit;
+
+            if let Some((object_index, _)) = player.object {
+                if let Some(skater) = self.world.objects.get_skater_mut(object_index) {
+                    skater.stick_limit = limit;
+                }
+            }
+
+            let mut limit_text = format!("{}", limit);
+
+            if limit == 0.0088888891 {
+                limit_text = format!("old (0.0088888891)");
+            } else if limit == 0.01 {
+                limit_text = format!("new (0.01)");
+            } else if limit == 0.0 {
+                limit_text = format!("no");
+            }
+
+            let msg = format!("Stick speed limit is set to {}", limit_text);
+
+            self.messages
+                .add_directed_server_chat_message(msg, player_index);
         }
     }
 
@@ -952,7 +1000,8 @@ impl HQMServer {
         if let Some(player) = self.players.get_mut(player_index) {
             if let Some((object_index, _)) = player.object {
                 if let Some(skater) = self.world.objects.get_skater_mut(object_index) {
-                    let mut new_skater = HQMSkater::new(pos, rot, player.hand, player.mass);
+                    let mut new_skater =
+                        HQMSkater::new(pos, rot, player.hand, player.mass, player.stick_limit);
                     if keep_stick_position {
                         let stick_pos_diff = &skater.stick_pos - &skater.body.pos;
                         let rot_change = skater.body.rot.rotation_to(&rot);
@@ -969,10 +1018,13 @@ impl HQMServer {
                     self.messages.add_global_message(update, true, true);
                 }
             } else {
-                if let Some(skater) =
-                    self.world
-                        .create_player_object(pos, rot, player.hand, player.mass)
-                {
+                if let Some(skater) = self.world.create_player_object(
+                    pos,
+                    rot,
+                    player.hand,
+                    player.mass,
+                    player.stick_limit,
+                ) {
                     if let HQMServerPlayerData::NetworkPlayer { data } = &mut player.data {
                         data.view_player_index = player_index;
                     }
@@ -1075,6 +1127,38 @@ impl HQMServer {
 
         let events = self.world.simulate_step();
 
+        let temp_events = events.clone();
+
+        self.saved_events.truncate(5 - 1);
+
+        let mut step_events = VecDeque::new();
+
+        for event in temp_events {
+            match event {
+                HQMSimulationEvent::PuckTouch { player, puck, .. } => {
+                    self.saved_events.clear();
+                    step_events.push_front((player, puck));
+                }
+                _ => {}
+            }
+        }
+
+        self.saved_events.push_front((self.game_step, step_events));
+
+        if self.saved_events.len() == 5 {
+            let events_five_frame_ago = &self.saved_events[4].1;
+            for e in events_five_frame_ago {
+                if let Some(skater) = self.world.objects.get_skater(e.0) {
+                    if skater.stick_limit == 0.0 || skater.stick_limit > 0.01 {
+                        if let Some(puck) = self.world.objects.get_puck_mut(e.1) {
+                            puck.body.linear_velocity =
+                                Self::limit_vector_length(puck.body.linear_velocity, 0.2665);
+                        }
+                    }
+                }
+            }
+        }
+
         let packets = hqm_parse::get_packets(&self.world.objects.objects);
 
         behaviour.after_tick(self, &events);
@@ -1100,6 +1184,15 @@ impl HQMServer {
         if self.config.replays_enabled != ReplayEnabled::Off && behaviour.save_replay_data(self) {
             self.write_replay();
         }
+    }
+
+    fn limit_vector_length(v: Vector3<f32>, max_len: f32) -> Vector3<f32> {
+        let norm = v.norm();
+        let mut res = v.clone_owned();
+        if norm > max_len {
+            res *= max_len / norm;
+        }
+        res
     }
 
     fn remove_inactive_players<B: HQMServerBehaviour>(&mut self, behaviour: &mut B) {
@@ -1438,6 +1531,7 @@ pub async fn run_server<B: HQMServerBehaviour>(
         history_length: 0,
         game_step: u32::MAX,
         start_time: Default::default(),
+        saved_events: VecDeque::with_capacity(5),
     };
     info!("Server started");
 
@@ -1677,6 +1771,7 @@ pub struct HQMServerPlayer {
     pub hand: HQMSkaterHand,
     pub mass: f32,
     pub input: HQMPlayerInput,
+    pub stick_limit: f32,
 }
 
 impl HQMServerPlayer {
@@ -1711,6 +1806,7 @@ impl HQMServerPlayer {
             is_muted: HQMMuteStatus::NotMuted,
             hand: HQMSkaterHand::Right,
             mass: 1.0,
+            stick_limit: 0.01,
         }
     }
 
