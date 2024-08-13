@@ -1144,7 +1144,7 @@ fn adjust_head_body_rot(rot: &mut f32, input_rot: f32) {
     }
 }
 
-fn limit_vector_length(v: &Vector3<f32>, max_len: f32) -> Vector3<f32> {
+pub fn limit_vector_length(v: &Vector3<f32>, max_len: f32) -> Vector3<f32> {
     let norm = v.norm();
     let mut res = v.clone_owned();
     if norm > max_len {
