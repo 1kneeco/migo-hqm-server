@@ -270,10 +270,6 @@ fn update_stick(
     let mut placement_change =
         placement_diff.scale(0.0625) - player.stick_placement_delta.scale(0.5);
 
-     if player.stick_limit != 0.0 {
-            placement_change = limit_vector_length2(&placement_change, player.stick_limit);
-        }
-
     player.stick_placement_delta += placement_change;
     player.stick_placement += &player.stick_placement_delta;
 
