@@ -690,14 +690,14 @@ impl HQMServer {
 }
 
     fn set_stick_limit(&mut self, _limit: f32, player_index: HQMServerPlayerIndex) {
-    let limit = 0.0; // Всегда no
+    let limit = 0.0;
 
     if let Some(player) = self.players.get_mut(player_index) {
-        player.stick_limit = limit;
+        player.stick_limit = 0.0;
 
         if let Some((object_index, _)) = player.object {
             if let Some(skater) = self.world.objects.get_skater_mut(object_index) {
-                skater.stick_limit = limit;
+                skater.stick_limit = 0.0;
             }
         }
 
