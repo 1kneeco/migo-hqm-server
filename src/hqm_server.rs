@@ -678,18 +678,13 @@ impl HQMServer {
             "t" => {
                 self.add_user_team_message(arg, player_index);
             }
-         "lm" => {
-			self.messages.add_directed_server_chat_message(
-			"Stick limit is locked to 'no' on this server.".to_string(),
-			player_index,
-		);
-		}
-                }
-            }
-            _ => behaviour.handle_command(self, command, arg, player_index),
-        }
-    }
-
+"lm" => {
+    self.messages.add_directed_server_chat_message(
+        "Stick limit is locked to 'no' on this server.".to_string(),
+        player_index,
+    );
+},
+    
     fn set_stick_limit(&mut self, _limit: f32, player_index: HQMServerPlayerIndex) {
     let limit = 0.0; // <-- Принудительная установка
 
