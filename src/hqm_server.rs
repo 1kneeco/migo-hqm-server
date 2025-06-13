@@ -552,48 +552,13 @@ impl HQMServer {
                     self.unmute_player(player_index, mute_player_index);
                 }
             }
-            "help1" => {
-            self.messages.add_directed_server_chat_message(
-                            "/disablejoin	Prevents new players from joining the server.",
-                            "/enablejoin	Enables new players to join the server.",
-                            "/kick ID	Kicks player with ID ID.",
-                            "/ban ID	Kicks and IP-bans player with ID ID.",
-                            "/fs ID	Forces player with ID ID off ice.",
-                        );
-            },
-            "help2" => {
-            self.messages.add_directed_server_chat_message(
-                            "/start	Starts game.",
-                            "/reset	Resets game.",
-                            "/pause	Pauses game.",
-                            "/unpause	Unpauses game.",
-                            "/faceoff	Calls center-ice faceoff.",
-                        );
-            },
-            "help3" => {
-            self.messages.add_directed_server_chat_message(
-                            "/set clock M:S	Sets game clock.",
-                            "/set period N	Sets period. OT1 is 4, OT2 is 5, etc. 0 is warmup.",
-                            "/set periodnum N	Sets number of periods.",
-                            "/set redscore N	Sets red score.",
-                            "/set bluescore N	Sets blue score.",
-                        );
-            },
-            "help4" => {
-            self.messages.add_directed_server_chat_message(
-                            "/set teamsize N	Sets team size.",
-                            "/set mercy N/off	Sets mercy rule setting. If 0 or off, mercy rule will be disabled.",
-                            "/set first N/off	Sets first-to-goals rule setting. If 0, first-to-goals rule will be disabled.",
-                            "/set goalreplay on/off	Enables/disabled goal replays.",
-                            "/kickall S	Kicks all players with a player name equal to S (case-insensitive).",
-                        );
-            },
-             "help5" => {
-            self.messages.add_directed_server_chat_message(
-                            "/banall S	Same as /kickall, but also IP-bans.",
-                            "/serverrestart	Restarting the server service in Linux based OS",
-                        );
-            },
+            /*"shadowmute" => {
+                if let Ok(mute_player_index) = arg.parse::<usize>() {
+                    if mute_player_index < self.players.len() {
+                        self.shadowmute_player(player_index, mute_player_index);
+                    }
+                }
+            },*/
             "mutechat" => {
                 self.mute_chat(player_index);
             }
