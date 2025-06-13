@@ -678,15 +678,19 @@ impl HQMServer {
             "t" => {
                 self.add_user_team_message(arg, player_index);
             }
-"lm" => {
-    self.messages.add_directed_server_chat_message(
-        "Stick limit is locked to 'no' on this server.".to_string(),
-        player_index,
-    );
-},
-    
+        "lm" => {
+            // Блокируем смену stick limit'а — всегда принудительно "no"
+            self.messages.add_directed_server_chat_message(
+                "Stick limit is locked to 'no' on this server.".to_string(),
+                player_index,
+            );
+        }
+        _ => behaviour.handle_command(self, command, arg, player_index),
+    }
+}
+
     fn set_stick_limit(&mut self, _limit: f32, player_index: HQMServerPlayerIndex) {
-    let limit = 0.0; // <-- Принудительная установка
+    let limit = 0.0; // Всегда no
 
     if let Some(player) = self.players.get_mut(player_index) {
         player.stick_limit = limit;
@@ -1120,7 +1124,21 @@ impl HQMServer {
         }
 
         self.saved_events.push_front((self.game_step, step_events));
-		
+
+        if self.saved_events.len() == 3 {
+            let events_five_frame_ago = &self.saved_events[2].1;
+            for e in events_five_frame_ago {
+                if let Some(skater) = self.world.objects.get_skater(e.0) {
+                    if skater.stick_limit == 0.0 || skater.stick_limit > 0.01 {
+                        if let Some(puck) = self.world.objects.get_puck_mut(e.1) {
+                            puck.body.linear_velocity =
+                                limit_vector_length(&puck.body.linear_velocity, 0.2665);
+                        }
+                    }
+                }
+            }
+        }
+
         let packets = hqm_parse::get_packets(&self.world.objects.objects);
 
         behaviour.after_tick(self, &events);
